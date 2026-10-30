@@ -1,0 +1,410 @@
+{
+  "id": "m3",
+  "title": "ARRAY, STRUCT & UNNEST",
+  "description": "BigQuery can store lists and nested records inside a single column. Learn to build them, read them and flatten them back into rows.",
+  "exercises": [
+    {
+      "id": "m3-e01",
+      "title": "Build a list with ARRAY_AGG",
+      "context": [
+        "An **ARRAY** is an ordered list of values in one cell. `ARRAY_AGG` is an aggregate function that collects values into an array — one array per group:",
+        "",
+        "```",
+        "ARRAY_AGG(DISTINCT x ORDER BY x)",
+        "```",
+        "",
+        "`DISTINCT` removes duplicates and `ORDER BY` sorts the elements. (Tip: ARRAY_AGG fails if it meets a NULL — add `IGNORE NULLS` if the column can be empty.)"
+      ],
+      "instructions": [
+        "For each product `category`, list the departments that sell it.",
+        "Return `category` and `departments` — an array of distinct department names, sorted alphabetically."
+      ],
+      "starter": [
+        "SELECT",
+        "  category,",
+        "  ___(DISTINCT department ORDER BY ___) AS departments",
+        "FROM `bigquery-public-data.thelook_ecommerce.products`",
+        "GROUP BY category"
+      ],
+      "solution": [
+        "SELECT",
+        "  category,",
+        "  ARRAY_AGG(DISTINCT department IGNORE NULLS ORDER BY department) AS departments",
+        "FROM `bigquery-public-data.thelook_ecommerce.products`",
+        "GROUP BY category"
+      ],
+      "hints": [
+        "ARRAY_AGG(DISTINCT department ORDER BY department)",
+        "The element order matters for the check, so keep the ORDER BY inside ARRAY_AGG."
+      ],
+      "requiredPatterns": [
+        { "pattern": "\\bARRAY_AGG\\s*\\(", "message": "Use ARRAY_AGG to build the list of departments." }
+      ],
+      "tables": ["products"]
+    },
+    {
+      "id": "m3-e02",
+      "title": "Measure an array with ARRAY_LENGTH",
+      "context": [
+        "Once you have an array, `ARRAY_LENGTH(arr)` tells you how many elements it has. This lets you filter on \"how many different things\" without a second GROUP BY."
+      ],
+      "instructions": [
+        "Find the categories that are sold in **both** departments.",
+        "Build the department array per category in a CTE, then keep the categories where the array has exactly 2 elements.",
+        "Return one column: `category`."
+      ],
+      "starter": [
+        "WITH category_departments AS (",
+        "  SELECT",
+        "    category,",
+        "    ARRAY_AGG(DISTINCT department) AS departments",
+        "  FROM `bigquery-public-data.thelook_ecommerce.products`",
+        "  GROUP BY category",
+        ")",
+        "",
+        "SELECT category",
+        "FROM category_departments",
+        "WHERE ___(departments) = ___"
+      ],
+      "solution": [
+        "WITH category_departments AS (",
+        "  SELECT",
+        "    category,",
+        "    ARRAY_AGG(DISTINCT department IGNORE NULLS) AS departments",
+        "  FROM `bigquery-public-data.thelook_ecommerce.products`",
+        "  GROUP BY category",
+        ")",
+        "",
+        "SELECT category",
+        "FROM category_departments",
+        "WHERE ARRAY_LENGTH(departments) = 2"
+      ],
+      "hints": [
+        "ARRAY_LENGTH(departments) = 2"
+      ],
+      "requiredPatterns": [
+        { "pattern": "\\bARRAY_LENGTH\\s*\\(", "message": "Use ARRAY_LENGTH on the array of departments." }
+      ],
+      "tables": ["products"]
+    },
+    {
+      "id": "m3-e03",
+      "title": "A complete calendar: GENERATE_DATE_ARRAY + UNNEST",
+      "context": [
+        "`UNNEST(array)` turns an array into rows — one row per element — and can be used in `FROM` like a table.",
+        "",
+        "`GENERATE_DATE_ARRAY(start, end)` creates an array with every date in a range. Together they make a calendar:",
+        "",
+        "```",
+        "FROM UNNEST(GENERATE_DATE_ARRAY(DATE '2023-12-01', DATE '2023-12-31')) AS calendar_date",
+        "```",
+        "",
+        "Left-joining sales onto a calendar shows days **without** sales as 0 instead of leaving them out — important for charts and averages."
+      ],
+      "instructions": [
+        "The CTE `clothing_sets_sales` has one row per sold item in the small category `'Clothing Sets'`.",
+        "Build a calendar for December 2023 and left join the sales onto it.",
+        "Return `sale_date` and `items_sold` (0 on days without sales) for all 31 days, sorted by date."
+      ],
+      "starter": [
+        "WITH clothing_sets_sales AS (",
+        "  SELECT DATE(oi.created_at) AS sale_date",
+        "  FROM `bigquery-public-data.thelook_ecommerce.order_items` AS oi",
+        "  JOIN `bigquery-public-data.thelook_ecommerce.products` AS p",
+        "    ON oi.product_id = p.id",
+        "  WHERE p.category = 'Clothing Sets'",
+        "    AND oi.status != 'Cancelled'",
+        ")",
+        "",
+        "SELECT",
+        "  calendar_date AS sale_date,",
+        "  COUNT(s.sale_date) AS items_sold",
+        "FROM ___(GENERATE_DATE_ARRAY(DATE '2023-12-01', DATE '___')) AS calendar_date",
+        "___ JOIN clothing_sets_sales AS s",
+        "  ON s.sale_date = calendar_date",
+        "GROUP BY calendar_date",
+        "ORDER BY calendar_date"
+      ],
+      "solution": [
+        "WITH clothing_sets_sales AS (",
+        "  SELECT DATE(oi.created_at) AS sale_date",
+        "  FROM `bigquery-public-data.thelook_ecommerce.order_items` AS oi",
+        "  JOIN `bigquery-public-data.thelook_ecommerce.products` AS p",
+        "    ON oi.product_id = p.id",
+        "  WHERE p.category = 'Clothing Sets'",
+        "    AND oi.status != 'Cancelled'",
+        ")",
+        "",
+        "SELECT",
+        "  calendar_date AS sale_date,",
+        "  COUNT(s.sale_date) AS items_sold",
+        "FROM UNNEST(GENERATE_DATE_ARRAY(DATE '2023-12-01', DATE '2023-12-31')) AS calendar_date",
+        "LEFT JOIN clothing_sets_sales AS s",
+        "  ON s.sale_date = calendar_date",
+        "GROUP BY calendar_date",
+        "ORDER BY calendar_date"
+      ],
+      "hints": [
+        "FROM UNNEST(GENERATE_DATE_ARRAY(…)) AS calendar_date",
+        "Use a LEFT JOIN so days without sales are kept. COUNT(s.sale_date) counts only matched rows, so empty days get 0."
+      ],
+      "requiredPatterns": [
+        { "pattern": "\\bGENERATE_DATE_ARRAY\\s*\\(", "message": "Build the calendar with GENERATE_DATE_ARRAY." },
+        { "pattern": "\\bUNNEST\\s*\\(", "message": "Turn the date array into rows with UNNEST." }
+      ],
+      "orderMatters": true,
+      "tables": ["order_items", "products"]
+    },
+    {
+      "id": "m3-e04",
+      "title": "STRUCT: keep values together",
+      "context": [
+        "A **STRUCT** groups several fields into one value — like a mini row: `STRUCT(name, retail_price)`. You read fields with a dot: `my_struct.name`.",
+        "",
+        "Combined with `ARRAY_AGG` you get a handy alternative to `QUALIFY` for \"the top row per group\":",
+        "",
+        "```",
+        "ARRAY_AGG(STRUCT(a, b) ORDER BY b LIMIT 1)[OFFSET(0)]",
+        "```",
+        "",
+        "That builds a one-element array of the best row, and `[OFFSET(0)]` takes the first element (arrays are 0-indexed with OFFSET)."
+      ],
+      "instructions": [
+        "For each `category`, find the **cheapest** product by `retail_price`. If two products have the same price, take the one whose name comes first alphabetically.",
+        "Use `ARRAY_AGG(STRUCT(…) ORDER BY … LIMIT 1)[OFFSET(0)]` in a subquery or CTE.",
+        "Return `category`, `product_name` and `retail_price` (rounded to 2 decimals)."
+      ],
+      "starter": [
+        "WITH cheapest_per_category AS (",
+        "  SELECT",
+        "    category,",
+        "    ARRAY_AGG(",
+        "      STRUCT(name, retail_price)",
+        "      ORDER BY ___, ___",
+        "      LIMIT 1",
+        "    )[OFFSET(___)] AS cheapest",
+        "  FROM `bigquery-public-data.thelook_ecommerce.products`",
+        "  GROUP BY category",
+        ")",
+        "",
+        "SELECT",
+        "  category,",
+        "  cheapest.___ AS product_name,",
+        "  ROUND(cheapest.___, 2) AS retail_price",
+        "FROM cheapest_per_category"
+      ],
+      "solution": [
+        "WITH cheapest_per_category AS (",
+        "  SELECT",
+        "    category,",
+        "    ARRAY_AGG(",
+        "      STRUCT(name, retail_price)",
+        "      ORDER BY retail_price, name",
+        "      LIMIT 1",
+        "    )[OFFSET(0)] AS cheapest",
+        "  FROM `bigquery-public-data.thelook_ecommerce.products`",
+        "  GROUP BY category",
+        ")",
+        "",
+        "SELECT",
+        "  category,",
+        "  cheapest.name AS product_name,",
+        "  ROUND(cheapest.retail_price, 2) AS retail_price",
+        "FROM cheapest_per_category"
+      ],
+      "hints": [
+        "ORDER BY retail_price, name — ascending gives the cheapest first.",
+        "OFFSET(0) is the first element. Read the fields with cheapest.name and cheapest.retail_price."
+      ],
+      "requiredPatterns": [
+        { "pattern": "\\bARRAY_AGG\\s*\\(", "message": "Use ARRAY_AGG(STRUCT(…) ORDER BY … LIMIT 1) for this one." },
+        { "pattern": "\\bSTRUCT\\s*\\(", "message": "Wrap the columns in STRUCT(…) inside ARRAY_AGG." }
+      ],
+      "tables": ["products"]
+    },
+    {
+      "id": "m3-e05",
+      "title": "Basket analysis: categories per order",
+      "context": [
+        "Arrays are great for \"basket\" questions: collect what's in each order into an array, then analyse the arrays.",
+        "",
+        "This is a two-step aggregation — first per order, then over the orders — which a CTE makes easy to follow."
+      ],
+      "instructions": [
+        "CTE `baskets`: one row per `order_id` with `categories` = the array of **distinct** product categories in that order (all statuses).",
+        "Then count orders by basket size: return `num_categories` (the array length) and `num_orders`, sorted by `num_categories`."
+      ],
+      "starter": [
+        "WITH baskets AS (",
+        "  SELECT",
+        "    oi.order_id,",
+        "    ARRAY_AGG(___ p.category) AS categories",
+        "  FROM `bigquery-public-data.thelook_ecommerce.order_items` AS oi",
+        "  JOIN `bigquery-public-data.thelook_ecommerce.products` AS p",
+        "    ON oi.product_id = p.id",
+        "  GROUP BY oi.order_id",
+        ")",
+        "",
+        "SELECT",
+        "  ___ AS num_categories,",
+        "  COUNT(*) AS num_orders",
+        "FROM baskets",
+        "GROUP BY num_categories",
+        "ORDER BY num_categories"
+      ],
+      "solution": [
+        "WITH baskets AS (",
+        "  SELECT",
+        "    oi.order_id,",
+        "    ARRAY_AGG(DISTINCT p.category IGNORE NULLS) AS categories",
+        "  FROM `bigquery-public-data.thelook_ecommerce.order_items` AS oi",
+        "  JOIN `bigquery-public-data.thelook_ecommerce.products` AS p",
+        "    ON oi.product_id = p.id",
+        "  GROUP BY oi.order_id",
+        ")",
+        "",
+        "SELECT",
+        "  ARRAY_LENGTH(categories) AS num_categories,",
+        "  COUNT(*) AS num_orders",
+        "FROM baskets",
+        "GROUP BY num_categories",
+        "ORDER BY num_categories"
+      ],
+      "hints": [
+        "ARRAY_AGG(DISTINCT p.category)",
+        "num_categories is ARRAY_LENGTH(categories)."
+      ],
+      "requiredPatterns": [
+        { "pattern": "\\bARRAY_AGG\\s*\\(", "message": "Collect the categories per order with ARRAY_AGG." },
+        { "pattern": "\\bARRAY_LENGTH\\s*\\(", "message": "Use ARRAY_LENGTH to get the basket size." }
+      ],
+      "orderMatters": true,
+      "tables": ["order_items", "products"]
+    },
+    {
+      "id": "m3-e06",
+      "title": "A lookup table from an ARRAY of STRUCTs",
+      "context": [
+        "You can write an array of structs directly in the query and `UNNEST` it into a small table — handy for lookup tables and price bands that don't exist in the database:",
+        "",
+        "```",
+        "SELECT * FROM UNNEST([",
+        "  STRUCT('A' AS label, 0 AS low),",
+        "  STRUCT('B' AS label, 10 AS low)",
+        "])",
+        "```",
+        "",
+        "Joining with a range condition (`>=` and `<`) instead of `=` puts each product in the right band."
+      ],
+      "instructions": [
+        "The CTE `price_bands` defines three bands: Budget (0–25), Mid (25–75) and Premium (75 and up). A product belongs to a band when `retail_price >= min_price AND retail_price < max_price`.",
+        "Join `products` to the bands and return, per `band`: `num_products` and `avg_price` (rounded to 2 decimals)."
+      ],
+      "starter": [
+        "WITH price_bands AS (",
+        "  SELECT *",
+        "  FROM ___([",
+        "    STRUCT('Budget' AS band, 0.0 AS min_price, 25.0 AS max_price),",
+        "    STRUCT('Mid' AS band, 25.0 AS min_price, 75.0 AS max_price),",
+        "    STRUCT('Premium' AS band, 75.0 AS min_price, 1000000.0 AS max_price)",
+        "  ])",
+        ")",
+        "",
+        "SELECT",
+        "  b.band,",
+        "  COUNT(*) AS num_products,",
+        "  ROUND(AVG(p.retail_price), 2) AS avg_price",
+        "FROM `bigquery-public-data.thelook_ecommerce.products` AS p",
+        "JOIN price_bands AS b",
+        "  ON p.retail_price ___ b.min_price",
+        "  AND p.retail_price ___ b.max_price",
+        "GROUP BY b.band"
+      ],
+      "solution": [
+        "WITH price_bands AS (",
+        "  SELECT *",
+        "  FROM UNNEST([",
+        "    STRUCT('Budget' AS band, 0.0 AS min_price, 25.0 AS max_price),",
+        "    STRUCT('Mid' AS band, 25.0 AS min_price, 75.0 AS max_price),",
+        "    STRUCT('Premium' AS band, 75.0 AS min_price, 1000000.0 AS max_price)",
+        "  ])",
+        ")",
+        "",
+        "SELECT",
+        "  b.band,",
+        "  COUNT(*) AS num_products,",
+        "  ROUND(AVG(p.retail_price), 2) AS avg_price",
+        "FROM `bigquery-public-data.thelook_ecommerce.products` AS p",
+        "JOIN price_bands AS b",
+        "  ON p.retail_price >= b.min_price",
+        "  AND p.retail_price < b.max_price",
+        "GROUP BY b.band"
+      ],
+      "hints": [
+        "FROM UNNEST([ … ]) turns the array of structs into rows; SELECT * expands the struct fields into columns.",
+        "Use >= for the lower bound and < for the upper bound so no product lands in two bands."
+      ],
+      "requiredPatterns": [
+        { "pattern": "\\bUNNEST\\s*\\(", "message": "Turn the array of structs into rows with UNNEST." }
+      ],
+      "tables": ["products"]
+    },
+    {
+      "id": "m3-e07",
+      "title": "Searching inside arrays: IN UNNEST",
+      "context": [
+        "`value IN UNNEST(array)` checks whether an array contains a value — it returns TRUE or FALSE.",
+        "",
+        "Combined with `COUNTIF` it answers questions like \"how many sessions included a purchase?\" in a single pass.",
+        "",
+        "The `events` table is the largest in the dataset — this query scans more data than the others (still well within the free tier)."
+      ],
+      "instructions": [
+        "CTE `sessions`: group `events` by `session_id` **and** `traffic_source`, and collect `event_types` = the array of `event_type` values.",
+        "Per `traffic_source`, return `num_sessions` and `conversion_pct` = the share of sessions that contain a `'purchase'` event, in percent, rounded to 2 decimals."
+      ],
+      "starter": [
+        "WITH sessions AS (",
+        "  SELECT",
+        "    session_id,",
+        "    traffic_source,",
+        "    ARRAY_AGG(event_type) AS event_types",
+        "  FROM `bigquery-public-data.thelook_ecommerce.events`",
+        "  GROUP BY session_id, traffic_source",
+        ")",
+        "",
+        "SELECT",
+        "  traffic_source,",
+        "  COUNT(*) AS num_sessions,",
+        "  ROUND(COUNTIF('purchase' ___ ___(event_types)) / COUNT(*) * 100, 2) AS conversion_pct",
+        "FROM sessions",
+        "GROUP BY traffic_source"
+      ],
+      "solution": [
+        "WITH sessions AS (",
+        "  SELECT",
+        "    session_id,",
+        "    traffic_source,",
+        "    ARRAY_AGG(event_type IGNORE NULLS) AS event_types",
+        "  FROM `bigquery-public-data.thelook_ecommerce.events`",
+        "  GROUP BY session_id, traffic_source",
+        ")",
+        "",
+        "SELECT",
+        "  traffic_source,",
+        "  COUNT(*) AS num_sessions,",
+        "  ROUND(COUNTIF('purchase' IN UNNEST(event_types)) / COUNT(*) * 100, 2) AS conversion_pct",
+        "FROM sessions",
+        "GROUP BY traffic_source"
+      ],
+      "hints": [
+        "'purchase' IN UNNEST(event_types)",
+        "COUNTIF(…) / COUNT(*) * 100 gives the percentage."
+      ],
+      "requiredPatterns": [
+        { "pattern": "\\bIN\\s+UNNEST\\s*\\(", "message": "Use IN UNNEST(event_types) to check for a purchase." }
+      ],
+      "tables": ["events"]
+    }
+  ]
+}

@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SQL Lab · BigQuery</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <button class="icon-btn" id="toggleSidebar" title="Show/hide exercises" aria-label="Show or hide exercise list">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+    </button>
+    <div class="brand">
+      <span class="brand-mark">▦</span>
+      <span>SQL Lab</span>
+      <span class="brand-sub">BigQuery</span>
+    </div>
+    <div class="progress" title="Exercises completed">
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      <span id="progressText">0 / 0</span>
+    </div>
+    <div class="status-pill" id="statusPill" title="Connection to BigQuery">
+      <span class="dot"></span><span id="statusText">Connecting…</span>
+    </div>
+  </header>
+
+  <div class="layout">
+    <nav class="sidebar" id="sidebar" aria-label="Exercises"></nav>
+
+    <main class="workspace">
+      <section class="pane instructions" id="instructionsPane">
+        <div class="pane-scroll">
+          <div class="crumb" id="crumb"></div>
+          <h1 id="exTitle"></h1>
+          <div class="context md" id="exContext"></div>
+
+          <div class="task-card">
+            <div class="task-head">
+              <span class="task-label">Instructions</span>
+              <span class="xp" id="exNumber"></span>
+            </div>
+            <ul id="exInstructions"></ul>
+          </div>
+
+          <div class="hint-area" id="hintArea"></div>
+          <div class="help-buttons">
+            <button class="btn ghost" id="hintBtn">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg>
+              <span id="hintBtnText">Take a hint</span>
+            </button>
+            <button class="btn ghost" id="solutionBtn">Show solution</button>
+          </div>
+
+          <div class="tables-block">
+            <div class="section-label">Tables used</div>
+            <div class="table-chips" id="tableChips"></div>
+            <div class="schema-panel" id="schemaPanel"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="pane coding">
+        <div class="editor-head">
+          <span class="file-tab">query.sql</span>
+          <div class="editor-actions">
+            <button class="btn subtle" id="resetBtn" title="Restore the starter code">Reset</button>
+            <button class="btn secondary" id="runBtn" title="Run (Ctrl+Enter)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z"/></svg>
+              Run code
+            </button>
+            <button class="btn primary" id="submitBtn" title="Submit (Ctrl+Shift+Enter)">Submit answer</button>
+          </div>
+        </div>
+        <div class="editor-wrap"><textarea id="editor"></textarea></div>
+
+        <div class="output">
+          <div class="feedback" id="feedback" hidden></div>
+          <div class="output-head">
+            <div class="tabs" role="tablist">
+              <button class="tab active" data-tab="result" role="tab">Query result</button>
+              <button class="tab" data-tab="expected" role="tab" id="expectedTab" hidden>Expected output</button>
+            </div>
+            <span class="meta" id="resultMeta"></span>
+          </div>
+          <div class="result" id="resultArea">
+            <div class="empty">Run your code to see the result here. <kbd>Ctrl</kbd> + <kbd>Enter</kbd></div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal" id="modal" hidden>
+    <div class="modal-card">
+      <h2 id="modalTitle"></h2>
+      <div id="modalBody"></div>
+      <div class="modal-actions" id="modalActions"></div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/sql/sql.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/sql-hint.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

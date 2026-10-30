@@ -1,0 +1,591 @@
+{
+  "id": "m2",
+  "title": "Window functions & QUALIFY",
+  "description": "Calculate across rows without collapsing them: running totals, rankings, comparisons with the previous row — and BigQuery's QUALIFY to filter on the result.",
+  "exercises": [
+    {
+      "id": "m2-e01",
+      "title": "Running total with SUM() OVER",
+      "context": [
+        "A **window function** calculates over a set of rows related to the current row, but — unlike `GROUP BY` — every row stays in the result.",
+        "",
+        "`SUM(revenue) OVER (ORDER BY month)` gives a running total: for each month, the sum of all months up to and including it.",
+        "",
+        "A window function can run on top of an aggregated CTE — that's the most common pattern."
+      ],
+      "instructions": [
+        "The CTE `monthly` calculates revenue per month in 2023 (completed items).",
+        "Return `month`, `revenue` (rounded to 2 decimals) and `running_revenue` — the cumulative revenue so far in the year, rounded to 2 decimals.",
+        "Sort by `month`."
+      ],
+      "starter": [
+        "WITH monthly AS (",
+        "  SELECT",
+        "    DATE_TRUNC(DATE(created_at), MONTH) AS month,",
+        "    SUM(sale_price) AS revenue",
+        "  FROM `bigquery-public-data.thelook_ecommerce.order_items`",
+        "  WHERE status = 'Complete'",
+        "    AND EXTRACT(YEAR FROM created_at) = 2023",
+        "  GROUP BY month",
+        ")",
+        "",
+        "SELECT",
+        "  month,",
+        "  ROUND(revenue, 2) AS revenue,",
+        "  ROUND(SUM(___) OVER (ORDER BY ___), 2) AS running_revenue",
+        "FROM monthly",
+        "ORDER BY month"
+      ],
+      "solution": [
+        "WITH monthly AS (",
+        "  SELECT",
+        "    DATE_TRUNC(DATE(created_at), MONTH) AS month,",
+        "    SUM(sale_price) AS revenue",
+        "  FROM `bigquery-public-data.thelook_ecommerce.order_items`",
+        "  WHERE status = 'Complete'",
+        "    AND EXTRACT(YEAR FROM created_at) = 2023",
+        "  GROUP BY month",
+        ")",
+        "",
+        "SELECT",
+        "  month,",
+        "  ROUND(revenue, 2) AS revenue,",
+        "  ROUND(SUM(revenue) OVER (ORDER BY month), 2) AS running_revenue",
+        "FROM monthly",
+        "ORDER BY month"
+      ],
+      "hints": [
+        "SUM(revenue) OVER (ORDER BY month)",
+        "The ORDER BY inside OVER decides the running order; the ORDER BY at the end sorts the output."
+      ],
+      "requiredPatterns": [
+        { "pattern": "\\bOVER\\s*\\(", "message": "Use a window function (… OVER (…)) for the running total." }
+      ],
+      "orderMatters": true,
+      "tables": ["order_items"]
+    },
+    {
+      "id": "m2-e02",
+      "title": "Month-over-month growth with LAG",
+      "context": [
+        "`LAG(column) OVER (ORDER BY …)` returns the value from the **previous** row. `LEAD` returns the next one. The first row has no previous row, so `LAG` returns `NULL` there.",
+        "",
+        "Growth % = (this month − last month) / last month × 100."
+      ],
+      "instructions": [
+        "Using the same `monthly` CTE as before, return:",
+        "`month`, `revenue`, `prev_revenue` (previous month's revenue) — both rounded to 2 decimals — and `growth_pct` rounded to 1 decimal, calculated with `SAFE_DIVIDE` on the unrounded values.",
+        "Sort by `month`."
+      ],
+      "starter": [
+        "WITH monthly AS (",
+        "  SELECT",
+        "    DATE_TRUNC(DATE(created_at), MONTH) AS month,",
+        "    SUM(sale_price) AS revenue",
+        "  FROM `bigquery-public-data.thelook_ecommerce.order_items`",
+        "  WHERE status = 'Complete'",
+        "    AND EXTRACT(YEAR FROM created_at) = 2023",
+        "  GROUP BY month",
+        ")",
+        "",
+        "SELECT",
+        "  month,",
+        "  ROUND(revenue, 2) AS revenue,",
+        "  ROUND(___(revenue) OVER (ORDER BY month), 2) AS prev_revenue,",
+        "  ROUND(SAFE_DIVIDE(",
+        "    revenue - ___,",
+        "    ___",
+        "  ) * 100, 1) AS growth_pct",
+        "FROM monthly",
+        "ORDER BY month"
+      ],
+      "solution": [
+        "WITH monthly AS (",
+        "  SELECT",
+        "    DATE_TRUNC(DATE(created_at), MONTH) AS month,",
+        "    SUM(sale_price) AS revenue",
+        "  FROM `bigquery-public-data.thelook_ecommerce.order_items`",
+        "  WHERE status = 'Complete'",
+        "    AND EXTRACT(YEAR FROM created_at) = 2023",
+        "  GROUP BY month",
+        ")",
+        "",
+        "SELECT",
+        "  month,",
+        "  ROUND(revenue, 2) AS revenue,",
+        "  ROUND(LAG(revenue) OVER (ORDER BY month), 2) AS prev_revenue,",
+        "  ROUND(SAFE_DIVIDE(",
+        "    revenue - LAG(revenue) OVER (ORDER BY month),",
+        "    LAG(revenue) OVER (ORDER BY month)",
+        "  ) * 100, 1) AS growth_pct",
+        "FROM monthly",
+        "ORDER BY month"
+      ],
+      "hints": [
+        "LAG(revenue) OVER (ORDER BY month) gives last month's revenue.",
+        "You can repeat the LAG expression inside SAFE_DIVIDE — or compute prev_revenue in a second CTE and use it from there."
+      ],
+      "requiredPatterns": [
+        { "pattern": "\\bLAG\\s*\\(", "message": "Use LAG to get the previous month's revenue." }
+      ],
+      "orderMatters": true,
+      "tolerance": 0.06,
+      "tables": ["order_items"]
+    },
+    {
+      "id": "m2-e03",
+      "title": "RANK within groups: top brands",
+      "context": [
+        "`PARTITION BY` splits the window into groups — the calculation restarts for each group, like a `GROUP BY` that doesn't collapse rows.",
+        "",
+        "`RANK() OVER (PARTITION BY department ORDER BY revenue DESC)` numbers the brands 1, 2, 3 … within each department.",
+        "",
+        "You can't use a window function in `WHERE`, so the classic approach is: rank in a CTE, then filter in the outer query."
+      ],
+      "instructions": [
+        "Find the **top 3 brands by revenue in each department** (completed items only).",
+        "Return `department`, `brand`, `revenue` (rounded to 2 decimals) and `brand_rank`.",
+        "Use a CTE for the ranking and filter in the outer query (no QUALIFY yet — that's next)."
+      ],
+      "starter": [
+        "WITH brand_revenue AS (",
+        "  SELECT",
+        "    p.department,",
+        "    p.brand,",
+        "    SUM(oi.sale_price) AS revenue",
+        "  FROM `bigquery-public-data.thelook_ecommerce.order_items` AS oi",
+        "  JOIN `bigquery-public-data.thelook_ecommerce.products` AS p",
+        "    ON oi.product_id = p.id",
+        "  WHERE oi.status = 'Complete'",
+        "  GROUP BY p.department, p.brand",
+        "),",
+        "",
+        "ranked AS (",
+        "  SELECT",
+        "    *,",
+        "    RANK() OVER (PARTITION BY ___ ORDER BY ___) AS brand_rank",
+        "  FROM brand_revenue",
+        ")",
+        "",
+        "SELECT",
+        "  department,",
+        "  brand,",
+        "  ROUND(revenue, 2) AS revenue,",
+        "  brand_rank",
+        "FROM ranked",
+        "WHERE ___"
+      ],
+      "solution": [
+        "WITH brand_revenue AS (",
+        "  SELECT",
+        "    p.department,",
+        "    p.brand,",
+        "    SUM(oi.sale_price) AS revenue",
+        "  FROM `bigquery-public-data.thelook_ecommerce.order_items` AS oi",
+        "  JOIN `bigquery-public-data.thelook_ecommerce.products` AS p",
+        "    ON oi.product_id = p.id",
+        "  WHERE oi.status = 'Complete'",
+        "  GROUP BY p.department, p.brand",
+        "),",
+        "",
+        "ranked AS (",
+        "  SELECT",
+        "    *,",
+        "    RANK() OVER (PARTITION BY department ORDER BY revenue DESC) AS brand_rank",
+        "  FROM brand_revenue",
+        ")",
+        "",
+        "SELECT",
+        "  department,",
+        "  brand,",
+        "  ROUND(revenue, 2) AS revenue,",
+        "  brand_rank",
+        "FROM ranked",
+        "WHERE brand_rank <= 3"
+      ],
+      "hints": [
+        "PARTITION BY department ORDER BY revenue DESC",
+        "Keep the rows where brand_rank <= 3."
+      ],
+      "tables": ["order_items", "products"]
+    },
+    {
+      "id": "m2-e04",
+      "title": "QUALIFY: filter on a window function",
+      "context": [
+        "BigQuery has a clause PostgreSQL lacks: **QUALIFY**. It filters on the result of a window function, the way `HAVING` filters on aggregates. No extra CTE needed:",
+        "",
+        "```",
+        "SELECT …",
+        "FROM …",
+        "GROUP BY …",
+        "QUALIFY ROW_NUMBER() OVER (PARTITION BY … ORDER BY …) = 1",
+        "```",
+        "",
+        "`ROW_NUMBER()` always gives unique numbers 1, 2, 3 …, even for ties — so to make the result predictable, add a tie-breaker to the `ORDER BY`."
+      ],
+      "instructions": [
+        "Find the **best-selling product (by number of items sold) in each category**. Exclude items with status `'Cancelled'`.",
+        "Group by category and product name. If two products tie, pick the one whose name comes first alphabetically.",
+        "Return `category`, `product_name` and `items_sold`. Use `QUALIFY`."
+      ],
+      "starter": [
+        "SELECT",
+        "  p.category,",
+        "  p.name AS product_name,",
+        "  COUNT(*) AS items_sold",
+        "FROM `bigquery-public-data.thelook_ecommerce.order_items` AS oi",
+        "JOIN `bigquery-public-data.thelook_ecommerce.products` AS p",
+        "  ON oi.product_id = p.id",
+        "WHERE oi.status != 'Cancelled'",
+        "GROUP BY p.category, p.name",
+        "___ ROW_NUMBER() OVER (",
+        "  PARTITION BY ___",
+        "  ORDER BY ___ DESC, p.name",
+        ") = 1"
+      ],
+      "solution": [
+        "SELECT",
+        "  p.category,",
+        "  p.name AS product_name,",
+        "  COUNT(*) AS items_sold",
+        "FROM `bigquery-public-data.thelook_ecommerce.order_items` AS oi",
+        "JOIN `bigquery-public-data.thelook_ecommerce.products` AS p",
+        "  ON oi.product_id = p.id",
+        "WHERE oi.status != 'Cancelled'",
+        "GROUP BY p.category, p.name",
+        "QUALIFY ROW_NUMBER() OVER (",
+        "  PARTITION BY p.category",
+        "  ORDER BY COUNT(*) DESC, p.name",
+        ") = 1"
+      ],
+      "hints": [
+        "The window can use aggregates: ORDER BY COUNT(*) DESC.",
+        "PARTITION BY p.category, and the tie-breaker p.name is already there."
+      ],
+      "requiredPatterns": [
+        { "pattern": "\\bQUALIFY\\b", "message": "Use QUALIFY to keep only the top product per category." }
+      ],
+      "tables": ["order_items", "products"]
+    },
+    {
+      "id": "m2-e05",
+      "title": "Each customer's first order",
+      "context": [
+        "\"First order per customer\" is one of the most common analysis questions. With `QUALIFY` it's short:",
+        "",
+        "```",
+        "QUALIFY ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY created_at) = 1",
+        "```",
+        "",
+        "Note: older BigQuery versions require a `WHERE`, `GROUP BY` or `HAVING` clause next to `QUALIFY`. `WHERE TRUE` is a harmless way to satisfy that."
+      ],
+      "instructions": [
+        "In a CTE `first_orders`, keep each user's **first** order (earliest `created_at`; break ties with `order_id`).",
+        "Then count those first orders per `status`: return `status` and `num_first_orders`."
+      ],
+      "starter": [
+        "WITH first_orders AS (",
+        "  SELECT",
+        "    user_id,",
+        "    order_id,",
+        "    status",
+        "  FROM `bigquery-public-data.thelook_ecommerce.orders`",
+        "  WHERE TRUE",
+        "  QUALIFY ROW_NUMBER() OVER (",
+        "    PARTITION BY ___",
+        "    ORDER BY ___, order_id",
+        "  ) = 1",
+        ")",
+        "",
+        "SELECT",
+        "  status,",
+        "  COUNT(*) AS num_first_orders",
+        "FROM first_orders",
+        "GROUP BY status"
+      ],
+      "solution": [
+        "WITH first_orders AS (",
+        "  SELECT",
+        "    user_id,",
+        "    order_id,",
+        "    status",
+        "  FROM `bigquery-public-data.thelook_ecommerce.orders`",
+        "  WHERE TRUE",
+        "  QUALIFY ROW_NUMBER() OVER (",
+        "    PARTITION BY user_id",
+        "    ORDER BY created_at, order_id",
+        "  ) = 1",
+        ")",
+        "",
+        "SELECT",
+        "  status,",
+        "  COUNT(*) AS num_first_orders",
+        "FROM first_orders",
+        "GROUP BY status"
+      ],
+      "hints": [
+        "Partition by the customer: user_id.",
+        "Earliest first: ORDER BY created_at (ascending), then order_id."
+      ],
+      "requiredPatterns": [
+        { "pattern": "\\bQUALIFY\\b", "message": "Use QUALIFY to keep the first order per user." }
+      ],
+      "tables": ["orders"]
+    },
+    {
+      "id": "m2-e06",
+      "title": "Time between orders: TIMESTAMP_DIFF",
+      "context": [
+        "In PostgreSQL you subtract timestamps directly. In BigQuery you use a function:",
+        "",
+        "- `TIMESTAMP_DIFF(later, earlier, DAY)` — for TIMESTAMP columns",
+        "- `DATE_DIFF(later, earlier, DAY)` — for DATE columns",
+        "",
+        "The result is a whole number of units (it truncates)."
+      ],
+      "instructions": [
+        "For every order, find the same customer's previous order with `LAG` (ordered by `created_at`).",
+        "Calculate the average number of days between consecutive orders, using `TIMESTAMP_DIFF(…, DAY)` on the timestamps. Skip orders that have no previous order.",
+        "Return one column: `avg_days_between_orders`, rounded to 1 decimal."
+      ],
+      "starter": [
+        "WITH with_prev AS (",
+        "  SELECT",
+        "    user_id,",
+        "    created_at,",
+        "    LAG(created_at) OVER (PARTITION BY ___ ORDER BY ___) AS prev_created_at",
+        "  FROM `bigquery-public-data.thelook_ecommerce.orders`",
+        ")",
+        "",
+        "SELECT",
+        "  ROUND(AVG(TIMESTAMP_DIFF(___, ___, DAY)), 1) AS avg_days_between_orders",
+        "FROM with_prev",
+        "WHERE ___"
+      ],
+      "solution": [
+        "WITH with_prev AS (",
+        "  SELECT",
+        "    user_id,",
+        "    created_at,",
+        "    LAG(created_at) OVER (PARTITION BY user_id ORDER BY created_at) AS prev_created_at",
+        "  FROM `bigquery-public-data.thelook_ecommerce.orders`",
+        ")",
+        "",
+        "SELECT",
+        "  ROUND(AVG(TIMESTAMP_DIFF(created_at, prev_created_at, DAY)), 1) AS avg_days_between_orders",
+        "FROM with_prev",
+        "WHERE prev_created_at IS NOT NULL"
+      ],
+      "hints": [
+        "LAG(created_at) OVER (PARTITION BY user_id ORDER BY created_at)",
+        "TIMESTAMP_DIFF(created_at, prev_created_at, DAY) — the later timestamp goes first."
+      ],
+      "requiredPatterns": [
+        { "pattern": "\\bTIMESTAMP_DIFF\\s*\\(", "message": "Use TIMESTAMP_DIFF to calculate the number of days." }
+      ],
+      "tolerance": 0.06,
+      "tables": ["orders"]
+    },
+    {
+      "id": "m2-e07",
+      "title": "Share of total with an empty OVER ()",
+      "context": [
+        "`OVER ()` with nothing inside makes the window **all rows** in the result. That's perfect for \"percent of total\":",
+        "",
+        "```",
+        "revenue / SUM(revenue) OVER () * 100",
+        "```",
+        "",
+        "Every row keeps its own value and is divided by the grand total."
+      ],
+      "instructions": [
+        "Calculate revenue per `category` for completed items (as in an earlier exercise) in a CTE.",
+        "Return `category`, `revenue` (rounded to 2 decimals) and `pct_of_total` — the category's share of total revenue in percent, rounded to 2 decimals."
+      ],
+      "starter": [
+        "WITH category_revenue AS (",
+        "  SELECT",
+        "    p.category,",
+        "    SUM(oi.sale_price) AS revenue",
+        "  FROM `bigquery-public-data.thelook_ecommerce.order_items` AS oi",
+        "  JOIN `bigquery-public-data.thelook_ecommerce.products` AS p",
+        "    ON oi.product_id = p.id",
+        "  WHERE oi.status = 'Complete'",
+        "  GROUP BY p.category",
+        ")",
+        "",
+        "SELECT",
+        "  category,",
+        "  ROUND(revenue, 2) AS revenue,",
+        "  ROUND(revenue / ___ * 100, 2) AS pct_of_total",
+        "FROM category_revenue"
+      ],
+      "solution": [
+        "WITH category_revenue AS (",
+        "  SELECT",
+        "    p.category,",
+        "    SUM(oi.sale_price) AS revenue",
+        "  FROM `bigquery-public-data.thelook_ecommerce.order_items` AS oi",
+        "  JOIN `bigquery-public-data.thelook_ecommerce.products` AS p",
+        "    ON oi.product_id = p.id",
+        "  WHERE oi.status = 'Complete'",
+        "  GROUP BY p.category",
+        ")",
+        "",
+        "SELECT",
+        "  category,",
+        "  ROUND(revenue, 2) AS revenue,",
+        "  ROUND(revenue / SUM(revenue) OVER () * 100, 2) AS pct_of_total",
+        "FROM category_revenue"
+      ],
+      "hints": [
+        "The grand total is SUM(revenue) OVER ().",
+        "Divide the unrounded revenue, then round the final percentage."
+      ],
+      "requiredPatterns": [
+        { "pattern": "\\bOVER\\s*\\(\\s*\\)", "message": "Use SUM(…) OVER () to get the grand total." }
+      ],
+      "tables": ["order_items", "products"]
+    },
+    {
+      "id": "m2-e08",
+      "title": "7-day moving average with a window frame",
+      "context": [
+        "A **window frame** limits which rows the window sees. For a moving average over the last 7 rows:",
+        "",
+        "```",
+        "AVG(x) OVER (ORDER BY day ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)",
+        "```",
+        "",
+        "6 preceding rows + the current row = 7 days. The first days simply average over fewer rows."
+      ],
+      "instructions": [
+        "Count orders per day (`order_date` = `DATE(created_at)`) for **December 2023**.",
+        "Add `moving_avg_7d` — the average of the current day and the 6 days before it, rounded to 2 decimals.",
+        "Return `order_date`, `num_orders`, `moving_avg_7d`, sorted by date."
+      ],
+      "starter": [
+        "WITH daily AS (",
+        "  SELECT",
+        "    DATE(created_at) AS order_date,",
+        "    COUNT(*) AS num_orders",
+        "  FROM `bigquery-public-data.thelook_ecommerce.orders`",
+        "  WHERE DATE(created_at) BETWEEN '2023-12-01' AND '2023-12-31'",
+        "  GROUP BY order_date",
+        ")",
+        "",
+        "SELECT",
+        "  order_date,",
+        "  num_orders,",
+        "  ROUND(AVG(num_orders) OVER (",
+        "    ORDER BY order_date",
+        "    ROWS BETWEEN ___ AND ___",
+        "  ), 2) AS moving_avg_7d",
+        "FROM daily",
+        "ORDER BY order_date"
+      ],
+      "solution": [
+        "WITH daily AS (",
+        "  SELECT",
+        "    DATE(created_at) AS order_date,",
+        "    COUNT(*) AS num_orders",
+        "  FROM `bigquery-public-data.thelook_ecommerce.orders`",
+        "  WHERE DATE(created_at) BETWEEN '2023-12-01' AND '2023-12-31'",
+        "  GROUP BY order_date",
+        ")",
+        "",
+        "SELECT",
+        "  order_date,",
+        "  num_orders,",
+        "  ROUND(AVG(num_orders) OVER (",
+        "    ORDER BY order_date",
+        "    ROWS BETWEEN 6 PRECEDING AND CURRENT ROW",
+        "  ), 2) AS moving_avg_7d",
+        "FROM daily",
+        "ORDER BY order_date"
+      ],
+      "hints": [
+        "ROWS BETWEEN 6 PRECEDING AND CURRENT ROW",
+        "7 days = the current row plus the 6 before it."
+      ],
+      "orderMatters": true,
+      "tables": ["orders"]
+    },
+    {
+      "id": "m2-e09",
+      "title": "Customer segments with NTILE",
+      "context": [
+        "`NTILE(n) OVER (ORDER BY x)` splits the rows into `n` groups of (almost) equal size and numbers them 1…n. With `n = 4` you get quartiles — a quick way to segment customers by spend.",
+        "",
+        "Group 1 holds the lowest values when you order ascending."
+      ],
+      "instructions": [
+        "CTE `spend`: lifetime spend per `user_id` (sum of `sale_price`, completed items only).",
+        "Split the customers into 4 quartiles by lifetime spend (ascending) using `NTILE(4)`.",
+        "Return per `quartile`: `num_users`, `min_spend` and `max_spend` (rounded to 2 decimals), sorted by quartile."
+      ],
+      "starter": [
+        "WITH spend AS (",
+        "  SELECT",
+        "    user_id,",
+        "    SUM(sale_price) AS lifetime_spend",
+        "  FROM `bigquery-public-data.thelook_ecommerce.order_items`",
+        "  WHERE status = 'Complete'",
+        "  GROUP BY user_id",
+        "),",
+        "",
+        "segmented AS (",
+        "  SELECT",
+        "    lifetime_spend,",
+        "    ___(4) OVER (ORDER BY ___) AS quartile",
+        "  FROM spend",
+        ")",
+        "",
+        "SELECT",
+        "  quartile,",
+        "  COUNT(*) AS num_users,",
+        "  ROUND(MIN(lifetime_spend), 2) AS min_spend,",
+        "  ROUND(MAX(lifetime_spend), 2) AS max_spend",
+        "FROM segmented",
+        "GROUP BY ___",
+        "ORDER BY ___"
+      ],
+      "solution": [
+        "WITH spend AS (",
+        "  SELECT",
+        "    user_id,",
+        "    SUM(sale_price) AS lifetime_spend",
+        "  FROM `bigquery-public-data.thelook_ecommerce.order_items`",
+        "  WHERE status = 'Complete'",
+        "  GROUP BY user_id",
+        "),",
+        "",
+        "segmented AS (",
+        "  SELECT",
+        "    lifetime_spend,",
+        "    NTILE(4) OVER (ORDER BY lifetime_spend) AS quartile",
+        "  FROM spend",
+        ")",
+        "",
+        "SELECT",
+        "  quartile,",
+        "  COUNT(*) AS num_users,",
+        "  ROUND(MIN(lifetime_spend), 2) AS min_spend,",
+        "  ROUND(MAX(lifetime_spend), 2) AS max_spend",
+        "FROM segmented",
+        "GROUP BY quartile",
+        "ORDER BY quartile"
+      ],
+      "hints": [
+        "NTILE(4) OVER (ORDER BY lifetime_spend)",
+        "Group by and order by quartile."
+      ],
+      "requiredPatterns": [
+        { "pattern": "\\bNTILE\\s*\\(", "message": "Use NTILE(4) to create the quartiles." }
+      ],
+      "orderMatters": true,
+      "tables": ["order_items"]
+    }
+  ]
+}

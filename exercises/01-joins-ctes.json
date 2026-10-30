@@ -1,0 +1,443 @@
+{
+  "id": "m1",
+  "title": "BigQuery basics, joins & CTEs",
+  "description": "Get comfortable with BigQuery's flavour of SQL, then combine tables with joins, subqueries and common table expressions.",
+  "exercises": [
+    {
+      "id": "m1-e01",
+      "title": "Fully qualified table names",
+      "context": [
+        "In BigQuery every table lives in a **project** and a **dataset**. The full name is written `project.dataset.table`, wrapped in backticks because the project name contains hyphens:",
+        "",
+        "```",
+        "`bigquery-public-data.thelook_ecommerce.orders`",
+        "```",
+        "",
+        "In this app you can also write just `orders` — the dataset is set as a default. In the BigQuery console you'll need the full name, so the exercises use it."
+      ],
+      "instructions": [
+        "Count the number of orders per `status` in the `orders` table.",
+        "Name the count column `num_orders`."
+      ],
+      "starter": [
+        "SELECT",
+        "  status,",
+        "  ___ AS num_orders",
+        "FROM `bigquery-public-data.thelook_ecommerce.___`",
+        "GROUP BY ___"
+      ],
+      "solution": [
+        "SELECT",
+        "  status,",
+        "  COUNT(*) AS num_orders",
+        "FROM `bigquery-public-data.thelook_ecommerce.orders`",
+        "GROUP BY status"
+      ],
+      "hints": [
+        "COUNT(*) counts all rows in each group.",
+        "The table is called orders, and you group by the column you're counting per."
+      ],
+      "tables": ["orders"]
+    },
+    {
+      "id": "m1-e02",
+      "title": "Dates the BigQuery way",
+      "context": [
+        "Date functions are where BigQuery differs most from PostgreSQL:",
+        "",
+        "- PostgreSQL: `DATE_TRUNC('month', created_at)`",
+        "- BigQuery: `DATE_TRUNC(DATE(created_at), MONTH)` — the date part comes **second** and has **no quotes**.",
+        "",
+        "`created_at` is a `TIMESTAMP`, so convert it with `DATE()` first. `EXTRACT(YEAR FROM created_at)` works just like in PostgreSQL. BigQuery also lets you `GROUP BY` and `ORDER BY` a column alias."
+      ],
+      "instructions": [
+        "Count the orders per month for orders created in **2023**.",
+        "Return the columns `month` (a DATE, the first day of the month) and `num_orders`.",
+        "Sort by `month`, oldest first."
+      ],
+      "starter": [
+        "SELECT",
+        "  DATE_TRUNC(DATE(created_at), ___) AS month,",
+        "  COUNT(*) AS num_orders",
+        "FROM `bigquery-public-data.thelook_ecommerce.orders`",
+        "WHERE EXTRACT(___ FROM created_at) = 2023",
+        "GROUP BY month",
+        "ORDER BY ___"
+      ],
+      "solution": [
+        "SELECT",
+        "  DATE_TRUNC(DATE(created_at), MONTH) AS month,",
+        "  COUNT(*) AS num_orders",
+        "FROM `bigquery-public-data.thelook_ecommerce.orders`",
+        "WHERE EXTRACT(YEAR FROM created_at) = 2023",
+        "GROUP BY month",
+        "ORDER BY month"
+      ],
+      "hints": [
+        "The date part is written without quotes: MONTH, YEAR, WEEK …",
+        "ORDER BY month sorts ascending by default."
+      ],
+      "orderMatters": true,
+      "tables": ["orders"]
+    },
+    {
+      "id": "m1-e03",
+      "title": "INNER JOIN: revenue per category",
+      "context": [
+        "`order_items` has one row per item sold, and `sale_price` is what the customer paid. The product category isn't stored there — it lives in `products`.",
+        "",
+        "An `INNER JOIN` keeps only rows that have a match in both tables. Link them with `order_items.product_id = products.id`. Table aliases (`AS oi`, `AS p`) keep the query readable."
+      ],
+      "instructions": [
+        "Calculate total revenue per product `category`, counting only items with status `'Complete'`.",
+        "Return `category` and `revenue`, rounded to 2 decimals."
+      ],
+      "starter": [
+        "SELECT",
+        "  p.category,",
+        "  ROUND(SUM(oi.___), 2) AS revenue",
+        "FROM `bigquery-public-data.thelook_ecommerce.order_items` AS oi",
+        "INNER JOIN `bigquery-public-data.thelook_ecommerce.products` AS p",
+        "  ON oi.___ = p.___",
+        "WHERE oi.status = '___'",
+        "GROUP BY p.category"
+      ],
+      "solution": [
+        "SELECT",
+        "  p.category,",
+        "  ROUND(SUM(oi.sale_price), 2) AS revenue",
+        "FROM `bigquery-public-data.thelook_ecommerce.order_items` AS oi",
+        "INNER JOIN `bigquery-public-data.thelook_ecommerce.products` AS p",
+        "  ON oi.product_id = p.id",
+        "WHERE oi.status = 'Complete'",
+        "GROUP BY p.category"
+      ],
+      "hints": [
+        "Revenue is the sum of sale_price.",
+        "Join on oi.product_id = p.id. String comparisons are case sensitive: 'Complete'."
+      ],
+      "tables": ["order_items", "products"]
+    },
+    {
+      "id": "m1-e04",
+      "title": "LEFT JOIN: customers who never ordered",
+      "context": [
+        "A `LEFT JOIN` keeps **every** row from the left table. When there is no match, the columns from the right table are `NULL`.",
+        "",
+        "That gives a classic pattern — the **anti-join**: left join, then keep only the rows where the right side `IS NULL`. It answers questions like \"which customers have never ordered?\""
+      ],
+      "instructions": [
+        "Count the users in `users` who have **no** rows in `orders`.",
+        "Return one column: `users_without_orders`."
+      ],
+      "starter": [
+        "SELECT",
+        "  COUNT(*) AS users_without_orders",
+        "FROM `bigquery-public-data.thelook_ecommerce.users` AS u",
+        "___ JOIN `bigquery-public-data.thelook_ecommerce.orders` AS o",
+        "  ON u.id = o.___",
+        "WHERE o.order_id IS ___"
+      ],
+      "solution": [
+        "SELECT",
+        "  COUNT(*) AS users_without_orders",
+        "FROM `bigquery-public-data.thelook_ecommerce.users` AS u",
+        "LEFT JOIN `bigquery-public-data.thelook_ecommerce.orders` AS o",
+        "  ON u.id = o.user_id",
+        "WHERE o.order_id IS NULL"
+      ],
+      "hints": [
+        "Use LEFT JOIN so users without orders are kept.",
+        "Unmatched users get NULL in every orders column — filter on o.order_id IS NULL."
+      ],
+      "requiredPatterns": [
+        { "pattern": "\\bLEFT\\s+(OUTER\\s+)?JOIN\\b", "message": "This exercise practises the LEFT JOIN anti-join pattern — use a LEFT JOIN." }
+      ],
+      "tables": ["users", "orders"]
+    },
+    {
+      "id": "m1-e05",
+      "title": "Joining three tables",
+      "context": [
+        "Joins chain naturally: each `JOIN … ON …` adds one more table. Products are shipped from a distribution center, so the path is:",
+        "",
+        "`order_items` → `products` (via `product_id`) → `distribution_centers` (via `distribution_center_id`).",
+        "",
+        "`NOT IN ('A', 'B')` excludes several values at once."
+      ],
+      "instructions": [
+        "Calculate revenue per distribution center.",
+        "Exclude items with status `'Cancelled'` or `'Returned'`.",
+        "Return `distribution_center` (the center's name) and `revenue` rounded to 2 decimals."
+      ],
+      "starter": [
+        "SELECT",
+        "  dc.name AS distribution_center,",
+        "  ROUND(SUM(oi.sale_price), 2) AS revenue",
+        "FROM `bigquery-public-data.thelook_ecommerce.order_items` AS oi",
+        "JOIN `bigquery-public-data.thelook_ecommerce.products` AS p",
+        "  ON oi.product_id = p.id",
+        "JOIN `bigquery-public-data.thelook_ecommerce.___` AS dc",
+        "  ON ___ = ___",
+        "WHERE oi.status ___",
+        "GROUP BY distribution_center"
+      ],
+      "solution": [
+        "SELECT",
+        "  dc.name AS distribution_center,",
+        "  ROUND(SUM(oi.sale_price), 2) AS revenue",
+        "FROM `bigquery-public-data.thelook_ecommerce.order_items` AS oi",
+        "JOIN `bigquery-public-data.thelook_ecommerce.products` AS p",
+        "  ON oi.product_id = p.id",
+        "JOIN `bigquery-public-data.thelook_ecommerce.distribution_centers` AS dc",
+        "  ON p.distribution_center_id = dc.id",
+        "WHERE oi.status NOT IN ('Cancelled', 'Returned')",
+        "GROUP BY distribution_center"
+      ],
+      "hints": [
+        "The third table is distribution_centers, joined on p.distribution_center_id = dc.id.",
+        "WHERE oi.status NOT IN ('Cancelled', 'Returned')"
+      ],
+      "tables": ["order_items", "products", "distribution_centers"]
+    },
+    {
+      "id": "m1-e06",
+      "title": "Subquery in WHERE",
+      "context": [
+        "A subquery is a query inside another query. A subquery that returns a single value can be used anywhere a value is expected — for example in a `WHERE` comparison:",
+        "",
+        "```",
+        "WHERE price > (SELECT AVG(price) FROM …)",
+        "```"
+      ],
+      "instructions": [
+        "For each `department`, count the products whose `retail_price` is **above the average retail price of all products**.",
+        "Return `department` and `num_products`."
+      ],
+      "starter": [
+        "SELECT",
+        "  department,",
+        "  COUNT(*) AS num_products",
+        "FROM `bigquery-public-data.thelook_ecommerce.products`",
+        "WHERE retail_price > (",
+        "  SELECT ___",
+        "  FROM `bigquery-public-data.thelook_ecommerce.products`",
+        ")",
+        "GROUP BY ___"
+      ],
+      "solution": [
+        "SELECT",
+        "  department,",
+        "  COUNT(*) AS num_products",
+        "FROM `bigquery-public-data.thelook_ecommerce.products`",
+        "WHERE retail_price > (",
+        "  SELECT AVG(retail_price)",
+        "  FROM `bigquery-public-data.thelook_ecommerce.products`",
+        ")",
+        "GROUP BY department"
+      ],
+      "hints": [
+        "The subquery should return one number: AVG(retail_price).",
+        "The average is over all products, so the subquery has no GROUP BY."
+      ],
+      "tables": ["products"]
+    },
+    {
+      "id": "m1-e07",
+      "title": "Your first CTE: average order value",
+      "context": [
+        "A **CTE** (common table expression) is a named subquery defined at the top with `WITH`. It works exactly like in PostgreSQL and makes multi-step logic much easier to read:",
+        "",
+        "```",
+        "WITH step_one AS (",
+        "  SELECT …",
+        ")",
+        "SELECT … FROM step_one",
+        "```",
+        "",
+        "The `orders` table has no order total, so you need to build one from `order_items` first."
+      ],
+      "instructions": [
+        "In a CTE called `order_totals`, calculate `order_total` = the sum of `sale_price` per `order_id` and `user_id`, for items with status `'Complete'`.",
+        "Join the CTE to `users` and calculate, per `country`: `num_orders` and `avg_order_value` (rounded to 2 decimals).",
+        "Only keep countries with **at least 100** orders."
+      ],
+      "starter": [
+        "WITH order_totals AS (",
+        "  SELECT",
+        "    order_id,",
+        "    user_id,",
+        "    SUM(sale_price) AS order_total",
+        "  FROM `bigquery-public-data.thelook_ecommerce.order_items`",
+        "  WHERE status = 'Complete'",
+        "  GROUP BY ___, ___",
+        ")",
+        "",
+        "SELECT",
+        "  u.country,",
+        "  COUNT(*) AS num_orders,",
+        "  ROUND(AVG(___), 2) AS avg_order_value",
+        "FROM ___ AS ot",
+        "JOIN `bigquery-public-data.thelook_ecommerce.users` AS u",
+        "  ON ot.user_id = u.id",
+        "GROUP BY u.country",
+        "___ COUNT(*) >= 100"
+      ],
+      "solution": [
+        "WITH order_totals AS (",
+        "  SELECT",
+        "    order_id,",
+        "    user_id,",
+        "    SUM(sale_price) AS order_total",
+        "  FROM `bigquery-public-data.thelook_ecommerce.order_items`",
+        "  WHERE status = 'Complete'",
+        "  GROUP BY order_id, user_id",
+        ")",
+        "",
+        "SELECT",
+        "  u.country,",
+        "  COUNT(*) AS num_orders,",
+        "  ROUND(AVG(ot.order_total), 2) AS avg_order_value",
+        "FROM order_totals AS ot",
+        "JOIN `bigquery-public-data.thelook_ecommerce.users` AS u",
+        "  ON ot.user_id = u.id",
+        "GROUP BY u.country",
+        "HAVING COUNT(*) >= 100"
+      ],
+      "hints": [
+        "In the main query you select FROM the CTE by its name, just like a table.",
+        "Filtering on an aggregate after GROUP BY needs HAVING, not WHERE."
+      ],
+      "requiredPatterns": [
+        { "pattern": "^\\s*WITH\\b", "message": "Solve this one with a CTE: start the query with WITH order_totals AS (…)." }
+      ],
+      "tables": ["order_items", "users"]
+    },
+    {
+      "id": "m1-e08",
+      "title": "Chained CTEs and SAFE_DIVIDE",
+      "context": [
+        "You can define several CTEs in one `WITH`, separated by commas — each can use the ones before it.",
+        "",
+        "The purchase cost of each unit sold is in `inventory_items.cost` (join via `order_items.inventory_item_id = inventory_items.id`). `inventory_items` also has the product's category in `product_category`.",
+        "",
+        "BigQuery has `SAFE_DIVIDE(a, b)`, which returns `NULL` instead of an error when `b` is 0. Use it whenever you calculate ratios."
+      ],
+      "instructions": [
+        "CTE `sold`: one row per completed item (`status = 'Complete'`) with `category`, `sale_price` and `cost`.",
+        "CTE `category_totals`: per category, `revenue` (sum of sale_price) and `gross_profit` (sum of sale_price − cost).",
+        "Final query: `category`, `revenue` and `gross_profit` (both rounded to 2 decimals) and `margin_pct` = gross_profit / revenue × 100, rounded to 1 decimal, using `SAFE_DIVIDE`."
+      ],
+      "starter": [
+        "WITH sold AS (",
+        "  SELECT",
+        "    ii.product_category AS category,",
+        "    oi.sale_price,",
+        "    ii.cost",
+        "  FROM `bigquery-public-data.thelook_ecommerce.order_items` AS oi",
+        "  JOIN `bigquery-public-data.thelook_ecommerce.inventory_items` AS ii",
+        "    ON oi.___ = ii.id",
+        "  WHERE oi.status = 'Complete'",
+        "),",
+        "",
+        "category_totals AS (",
+        "  SELECT",
+        "    category,",
+        "    SUM(sale_price) AS revenue,",
+        "    SUM(___) AS gross_profit",
+        "  FROM sold",
+        "  GROUP BY category",
+        ")",
+        "",
+        "SELECT",
+        "  category,",
+        "  ROUND(revenue, 2) AS revenue,",
+        "  ROUND(gross_profit, 2) AS gross_profit,",
+        "  ROUND(SAFE_DIVIDE(___, ___) * 100, 1) AS margin_pct",
+        "FROM category_totals"
+      ],
+      "solution": [
+        "WITH sold AS (",
+        "  SELECT",
+        "    ii.product_category AS category,",
+        "    oi.sale_price,",
+        "    ii.cost",
+        "  FROM `bigquery-public-data.thelook_ecommerce.order_items` AS oi",
+        "  JOIN `bigquery-public-data.thelook_ecommerce.inventory_items` AS ii",
+        "    ON oi.inventory_item_id = ii.id",
+        "  WHERE oi.status = 'Complete'",
+        "),",
+        "",
+        "category_totals AS (",
+        "  SELECT",
+        "    category,",
+        "    SUM(sale_price) AS revenue,",
+        "    SUM(sale_price - cost) AS gross_profit",
+        "  FROM sold",
+        "  GROUP BY category",
+        ")",
+        "",
+        "SELECT",
+        "  category,",
+        "  ROUND(revenue, 2) AS revenue,",
+        "  ROUND(gross_profit, 2) AS gross_profit,",
+        "  ROUND(SAFE_DIVIDE(gross_profit, revenue) * 100, 1) AS margin_pct",
+        "FROM category_totals"
+      ],
+      "hints": [
+        "Join on oi.inventory_item_id = ii.id.",
+        "Gross profit per item is sale_price - cost. Margin is SAFE_DIVIDE(gross_profit, revenue)."
+      ],
+      "requiredPatterns": [
+        { "pattern": "\\bSAFE_DIVIDE\\s*\\(", "message": "Use SAFE_DIVIDE for the margin calculation." }
+      ],
+      "tolerance": 0.05,
+      "tables": ["order_items", "inventory_items"]
+    },
+    {
+      "id": "m1-e09",
+      "title": "COUNTIF and division without surprises",
+      "context": [
+        "Two BigQuery conveniences:",
+        "",
+        "- `COUNTIF(condition)` counts the rows where the condition is true — a shortcut for `SUM(CASE WHEN … THEN 1 ELSE 0 END)`.",
+        "- The `/` operator **always** returns a FLOAT64. In PostgreSQL `3 / 4` is `0` (integer division); in BigQuery it's `0.75`. No more `* 1.0` tricks!"
+      ],
+      "instructions": [
+        "Using all rows in `order_items` joined to `products`, calculate per `department`:",
+        "`total_items` (all items), `returned_items` (status `'Returned'`) and `return_rate_pct` = returned / total × 100, rounded to 2 decimals.",
+        "Use `COUNTIF` for the returned items."
+      ],
+      "starter": [
+        "SELECT",
+        "  p.department,",
+        "  COUNT(*) AS total_items,",
+        "  ___(oi.status = 'Returned') AS returned_items,",
+        "  ROUND(___ / ___ * 100, 2) AS return_rate_pct",
+        "FROM `bigquery-public-data.thelook_ecommerce.order_items` AS oi",
+        "JOIN `bigquery-public-data.thelook_ecommerce.products` AS p",
+        "  ON oi.product_id = p.id",
+        "GROUP BY p.department"
+      ],
+      "solution": [
+        "SELECT",
+        "  p.department,",
+        "  COUNT(*) AS total_items,",
+        "  COUNTIF(oi.status = 'Returned') AS returned_items,",
+        "  ROUND(COUNTIF(oi.status = 'Returned') / COUNT(*) * 100, 2) AS return_rate_pct",
+        "FROM `bigquery-public-data.thelook_ecommerce.order_items` AS oi",
+        "JOIN `bigquery-public-data.thelook_ecommerce.products` AS p",
+        "  ON oi.product_id = p.id",
+        "GROUP BY p.department"
+      ],
+      "hints": [
+        "COUNTIF(oi.status = 'Returned')",
+        "You can't reuse the alias returned_items in the same SELECT — repeat the expressions: COUNTIF(…) / COUNT(*)."
+      ],
+      "requiredPatterns": [
+        { "pattern": "\\bCOUNTIF\\s*\\(", "message": "Use COUNTIF to count the returned items." }
+      ],
+      "tables": ["order_items", "products"]
+    }
+  ]
+}

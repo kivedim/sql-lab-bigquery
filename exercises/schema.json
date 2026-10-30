@@ -1,0 +1,68 @@
+{
+  "dataset": "bigquery-public-data.thelook_ecommerce",
+  "description": "TheLook is a fictitious online clothing store created by Google's Looker team. The data is synthetic but realistic, and it is refreshed regularly — so numbers can change from day to day.",
+  "tables": [
+    {
+      "name": "orders",
+      "description": "One row per order.",
+      "columns": [
+        ["order_id", "INTEGER"], ["user_id", "INTEGER"], ["status", "STRING"], ["gender", "STRING"],
+        ["created_at", "TIMESTAMP"], ["returned_at", "TIMESTAMP"], ["shipped_at", "TIMESTAMP"],
+        ["delivered_at", "TIMESTAMP"], ["num_of_item", "INTEGER"]
+      ]
+    },
+    {
+      "name": "order_items",
+      "description": "One row per item in an order. sale_price is what the customer paid.",
+      "columns": [
+        ["id", "INTEGER"], ["order_id", "INTEGER"], ["user_id", "INTEGER"], ["product_id", "INTEGER"],
+        ["inventory_item_id", "INTEGER"], ["status", "STRING"], ["created_at", "TIMESTAMP"],
+        ["shipped_at", "TIMESTAMP"], ["delivered_at", "TIMESTAMP"], ["returned_at", "TIMESTAMP"],
+        ["sale_price", "FLOAT"]
+      ]
+    },
+    {
+      "name": "products",
+      "description": "The product catalogue.",
+      "columns": [
+        ["id", "INTEGER"], ["cost", "FLOAT"], ["category", "STRING"], ["name", "STRING"], ["brand", "STRING"],
+        ["retail_price", "FLOAT"], ["department", "STRING"], ["sku", "STRING"], ["distribution_center_id", "INTEGER"]
+      ]
+    },
+    {
+      "name": "inventory_items",
+      "description": "One row per physical unit in stock. cost is what the store paid for that unit.",
+      "columns": [
+        ["id", "INTEGER"], ["product_id", "INTEGER"], ["created_at", "TIMESTAMP"], ["sold_at", "TIMESTAMP"],
+        ["cost", "FLOAT"], ["product_category", "STRING"], ["product_name", "STRING"], ["product_brand", "STRING"],
+        ["product_retail_price", "FLOAT"], ["product_department", "STRING"], ["product_sku", "STRING"],
+        ["product_distribution_center_id", "INTEGER"]
+      ]
+    },
+    {
+      "name": "users",
+      "description": "Customers.",
+      "columns": [
+        ["id", "INTEGER"], ["first_name", "STRING"], ["last_name", "STRING"], ["email", "STRING"], ["age", "INTEGER"],
+        ["gender", "STRING"], ["state", "STRING"], ["street_address", "STRING"], ["postal_code", "STRING"],
+        ["city", "STRING"], ["country", "STRING"], ["latitude", "FLOAT"], ["longitude", "FLOAT"],
+        ["traffic_source", "STRING"], ["created_at", "TIMESTAMP"]
+      ]
+    },
+    {
+      "name": "events",
+      "description": "Website events (page views, cart, purchase …). Large table — filter it!",
+      "columns": [
+        ["id", "INTEGER"], ["user_id", "INTEGER"], ["sequence_number", "INTEGER"], ["session_id", "STRING"],
+        ["created_at", "TIMESTAMP"], ["ip_address", "STRING"], ["city", "STRING"], ["state", "STRING"],
+        ["postal_code", "STRING"], ["browser", "STRING"], ["traffic_source", "STRING"], ["uri", "STRING"],
+        ["event_type", "STRING"]
+      ]
+    },
+    {
+      "name": "distribution_centers",
+      "description": "Warehouses that ship the products.",
+      "columns": [["id", "INTEGER"], ["name", "STRING"], ["latitude", "FLOAT"], ["longitude", "FLOAT"]]
+    }
+  ]
+}
